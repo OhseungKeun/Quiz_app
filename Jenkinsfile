@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        IMAGE = "sbe03011/change-app"
+        IMAGE = "sbe03011/django-app"
         TAG = "v1.0.${env.BUILD_NUMBER}"
     }
 
