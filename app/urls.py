@@ -15,7 +15,7 @@ urlpatterns = [
     path('quiz/', views.main_category_list, name="main_category_list"),                    
     path('quiz/<int:main_id>/', views.sub_category_list, name="sub_category_list"),       
     path('quiz/sub/<int:sub_id>/', views.quiz_view, name="quiz_view"),                    
-    path('quiz/sub/<int:sub_id>/submit/', views.quiz_submit, name="quiz_submit"),    
+    path('quiz/sub/<int:sub_id>/submit/', views.quiz_submit_router, name="quiz_submit"),    
 
     # 포인트 / 유저 정보 / 은행
     path("user/", views.user_info, name="user_info"),

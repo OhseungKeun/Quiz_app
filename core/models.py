@@ -93,6 +93,11 @@ class MainCategory(models.Model):
 class SubCategory(models.Model):
     main = models.ForeignKey(MainCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    quiz_type = models.CharField(
+        max_length=10,
+        choices=[("mcq", "객관식"), ("short", "단답형"), ("ox", "OX")],
+        default="mcq"
+    )
 
     class Meta:
         db_table = "quiz_sub_category"
@@ -103,7 +108,7 @@ class SubCategory(models.Model):
 
 
 # -----------------------
-# 문제 테이블
+# 문제 테이블(객관식)
 # -----------------------
 class Quiz(models.Model):
     subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)
@@ -120,8 +125,34 @@ class Quiz(models.Model):
     def __str__(self):
         return f"[{self.subcategory.name}] {self.question}"
 
-
 # -----------------------
+# 문제 테이블(단답식)
+# -----------------------
+class ShortQuiz(models.Model):
+    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)
+    question = models.CharField(max_length=255)
+    answer_text = models.CharField(max_length=255)  # 정답 문자열 저장
+
+    class Meta:
+        db_table = 'quiz_short_question'
+
+    def __str__(self):
+        return f"[{self.subcategory.name}] {self.question}"
+
+
+class OxQuiz(models.Model):
+    subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)
+    question = models.TextField()
+    answer = models.BooleanField()   # True = O, False = X
+
+    class Meta:
+        db_table = 'ox_question'
+
+    def __str__(self):
+        return f"[{self.subcategory.name}] {self.question}"
+
+
+# -----------------------z
 # 유저 모의고사 기록 (소분류 단위로 저장)
 # -----------------------
 class UserExamRecord(models.Model):
@@ -129,7 +160,7 @@ class UserExamRecord(models.Model):
     subcategory = models.ForeignKey(SubCategory, on_delete=models.CASCADE)
     passed = models.BooleanField(default=False)
     score = models.IntegerField(default=0)
-    rewarded = models.BooleanField(default=False)  # 기존 코드에 있던 rewarded 필드 추가
+    rewarded = models.BooleanField(default=False)  
 
     class Meta:
         db_table = "user_exam_record"

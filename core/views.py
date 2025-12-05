@@ -1,6 +1,6 @@
 from django.http.response import HttpResponse
 from django.shortcuts import redirect, render, get_object_or_404
-from .models import UserPoint, Quiz, MainCategory, SubCategory, UserExamRecord, Notice, WithdrawRecord, GiftRecord, UserProfile, UserBankInfo
+from .models import UserPoint, Quiz, MainCategory, SubCategory, UserExamRecord, Notice, WithdrawRecord, GiftRecord, UserProfile, UserBankInfo, ShortQuiz, OxQuiz
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -55,22 +55,40 @@ def sub_category_list(request, main_id):
     })
 
 # ------------------------------------
-# 퀴즈 페이지
+# 퀴즈 페이지(객관식/답답형/OX)
 # ------------------------------------
 @login_required
 def quiz_view(request, sub_id):
     subcategory = SubCategory.objects.get(id=sub_id)
     questions = Quiz.objects.filter(subcategory=subcategory)
     
+    # 시험 유형 체크
+    if subcategory.quiz_type == "mcq":  # 객관식
+        questions = Quiz.objects.filter(subcategory=subcategory)
+        return render(request, "HTML/quiz.html", {
+            "subcategory": subcategory,
+            "questions": questions,
+        })
 
-    return render(request, "HTML/quiz.html", {
-        "subcategory": subcategory,
-        "questions": questions,
-    })
+    elif subcategory.quiz_type == "short":  # 단답형
+        questions = ShortQuiz.objects.filter(subcategory=subcategory)
+        return render(request, "HTML/short_quiz.html", {
+            "subcategory": subcategory,
+            "questions": questions,
+        })
+
+    elif subcategory.quiz_type == "ox":    # OX 퀴즈
+        questions = OxQuiz.objects.filter(subcategory=subcategory)
+        return render(request, "HTML/ox_quiz.html", {
+            "subcategory": subcategory,
+            "questions": questions,
+        })
+
+    return HttpResponse("시험 유형이 설정되지 않았습니다.", status=400)
 
 
 # ------------------------------------
-# 퀴즈 제출 & 채점
+# 퀴즈 제출 & 채점(객관식)
 # ------------------------------------
 @login_required
 def quiz_submit(request, sub_id):
@@ -130,6 +148,140 @@ def quiz_submit(request, sub_id):
         "balance": UserPoint.objects.get(user=user).balance,
     })
 
+# ------------------------------------
+# 퀴즈 제출 & 채점(단답형)
+# ------------------------------------
+@login_required
+def short_quiz_submit(request, sub_id):
+    if request.method != "POST":
+        return redirect(f"/quiz/short/{sub_id}/")
+
+    user = request.user
+    subcategory = SubCategory.objects.get(id=sub_id)
+    questions = ShortQuiz.objects.filter(subcategory=subcategory)
+
+    # 유저 시험 기록 조회 (없으면 생성)
+    user_exam, created = UserExamRecord.objects.get_or_create(
+        user=user,
+        subcategory=subcategory
+    )
+
+    correct_count = 0
+    question_count = questions.count()
+
+    for quiz in questions:
+        user_answer = request.POST.get(str(quiz.id), "").strip()
+
+        if user_answer and user_answer.lower() == quiz.answer_text.lower():
+            correct_count += 1
+
+    # 합격 기준 = 70%
+    passed = correct_count >= (question_count * 0.7)
+
+    # 기본 보상 금액
+    reward = 1000 if passed else 0
+
+    # 이미 보상 받은 기록이 있으면 지급 불가
+    already_rewarded = user_exam.rewarded
+    if already_rewarded:
+        reward = 0
+
+    # 점수 저장
+    user_exam.score = correct_count
+    user_exam.passed = passed
+
+    # 보상 지급 처리
+    if passed and not user_exam.rewarded:
+        user_exam.rewarded = True
+        user_point, _ = UserPoint.objects.get_or_create(user=user)
+        user_point.balance += reward
+        user_point.save()
+
+    user_exam.save()
+
+    return render(request, "HTML/exam_result.html", {
+        "subcategory": subcategory,
+        "score": correct_count,
+        "question_count": question_count,
+        "passed": passed,
+        "reward": reward,
+        "already_rewarded": already_rewarded,
+        "balance": UserPoint.objects.get(user=user).balance,
+    })
+
+# ------------------------------------
+# 퀴즈 제출 & 채점(OX 퀴즈)
+# ------------------------------------
+@login_required
+def ox_quiz_submit(request, sub_id):
+    if request.method != "POST":
+        return redirect(f"/quiz/ox/{sub_id}/")
+
+    user = request.user
+    subcategory = SubCategory.objects.get(id=sub_id)
+    questions = OxQuiz.objects.filter(subcategory=subcategory)
+
+    user_exam, created = UserExamRecord.objects.get_or_create(
+        user=user,
+        subcategory=subcategory
+    )
+
+    correct_count = 0
+    for quiz in questions:
+        selected = request.POST.get(str(quiz.id))
+        if selected is not None:
+            if (selected == "o" and quiz.answer == True) or \
+               (selected == "x" and quiz.answer == False):
+                correct_count += 1
+
+    question_count = questions.count()
+    passed = correct_count >= (question_count * 0.7)
+
+    reward = 1000 if passed else 0
+    already_rewarded = user_exam.rewarded
+    if already_rewarded:
+        reward = 0
+
+    user_exam.score = correct_count
+    user_exam.passed = passed
+
+    if passed and not user_exam.rewarded:
+        user_exam.rewarded = True
+        user_point, _ = UserPoint.objects.get_or_create(user=user)
+        user_point.balance += reward
+        user_point.save()
+
+    user_exam.save()
+
+    return render(request, "HTML/exam_result.html", {
+        "subcategory": subcategory,
+        "score": correct_count,
+        "question_count": question_count,
+        "passed": passed,
+        "reward": reward,
+        "already_rewarded": already_rewarded,
+        "balance": UserPoint.objects.get(user=user).balance,
+    })
+
+
+# ------------------------------------
+# 퀴즈 제출 자동 라우팅 (객관/단답/ox 자동 선택)
+# ------------------------------------
+@login_required
+def quiz_submit_router(request, sub_id):
+    subcategory = SubCategory.objects.get(id=sub_id)
+
+    # 시험 유형에 따라 올바른 채점 함수 호출
+    if subcategory.quiz_type == "mcq":  # 객관식
+        return quiz_submit(request, sub_id)
+
+    elif subcategory.quiz_type == "short":  # 단답형
+        return short_quiz_submit(request, sub_id)
+
+    elif subcategory.quiz_type == "ox":
+        return ox_quiz_submit(request, sub_id)
+
+    return HttpResponse("시험 유형이 설정되지 않았습니다.", status=400)
 
 # ------------------------------------
 # 환급 페이지
@@ -240,8 +392,9 @@ def withdraw_process(request):
     })
 
 # ------------------------------------
-# 포인트 출금 내역 확인
+# 출금 및 기프티콘 교환 내역 확인
 # ------------------------------------
+@login_required
 def point_records(request):
     gift_records = GiftRecord.objects.filter(user=request.user).order_by('-created_at')
     withdraw_records = WithdrawRecord.objects.filter(user=request.user).order_by('-created_at')
