@@ -31,5 +31,8 @@ $ python manage.py migrate
 
 $ python manage.py runserver 0.0.0.0:8000
 
+## 배포
+https://github.com/OhseungKeun/manifests 참고
+
 ## 작성자
 GitHub: OhseungKeun
