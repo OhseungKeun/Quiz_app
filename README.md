@@ -12,10 +12,15 @@ Jenkins 및 ArgoCD 파이프라인을 통한 자동 빌드/배포
 
 ## 실행 방법
 $ git clone https://github.com/OhseungKeun/Quiz_app.git
+
 $ cd Quiz_app
+
 $ python -m venv venv
+
 $ source venv/bin/activate
+
 $ python manage.py migrate
+
 $ python manage.py runserver 0.0.0.0:8000
 
 ## 작성자
