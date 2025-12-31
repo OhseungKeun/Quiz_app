@@ -5,9 +5,14 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import user_passes_test
 import uuid
+from django.db import connection
+
+def healthz(request):
+    connection.ensure_connection()
+    return HttpResponse("ok")
 
 # 메인 페이지
 def main(request):
